@@ -17,8 +17,11 @@ class Geometry:
         self.stats = stats
         self.surfaces = []
         self.label = label
-        self.inputWeight = 0
 
+        self.geometries = set()
+        self.sources = set()
+
+        self.inputWeight = 0
         self.epsilon = 1e-5
         self.startTime = None  # We are not calculating anything
         self.center = None

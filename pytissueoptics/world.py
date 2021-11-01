@@ -1,11 +1,9 @@
 import signal
 from .detector import *
+from .geometry import Geometry
 
-
-class World:
+class World(Geometry):
     def __init__(self):
-        self.geometries = set()
-        self.sources = set()
         self.verbose = False
 
     def totalSourcePhotons(self) -> float:

@@ -98,38 +98,6 @@ class World(Geometry):
         for photon in photons:
             self.propagate(photon)
 
-    def getPossibleIntersections(self, photons):
-        unimpededPhotonsOrDead = Photons()
-        impededPhotons = Photons()
-        interfaces = FresnelIntersects()
-
-        for i, p in enumerate(photons):
-            if p.isAlive:
-                interface = self.nextExitInterface(p.r, p.ez, distances[i])
-                if interface is not None:
-                    interfaces.append(interface)
-                    impededPhotons.append(p)
-                else:
-                    unimpededPhotonsOrDead.append(p)
-            else:
-                unimpededPhotonsOrDead.append(p)
-
-        return unimpededPhotonsOrDead, (impededPhotons, interfaces)
-
-    def place(self, anObject, position):
-        if isinstance(anObject, Geometry) or isinstance(anObject, Detector):
-            anObject.origin = position
-            self.geometries.add(anObject)
-        elif isinstance(anObject, Source):
-            anObject.origin = position
-            self.sources.add(anObject)
-
-    def contains(self, worldCoordinates):
-        for geometry in self.geometries:
-            localCoordinates = worldCoordinates - geometry.origin
-            if geometry.contains(localCoordinates):
-                return geometry
-        return self
 
     def assignCurrentGeometry(self, photon):
         if photon.isAlive:

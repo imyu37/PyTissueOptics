@@ -139,6 +139,14 @@ class Geometry:
         # self.scoreWhenFinal(photons)
         photons.transformFromLocalCoordinates(self.origin)
 
+    def place(self, anObject, position):
+        if isinstance(anObject, Geometry) or isinstance(anObject, Detector):
+            anObject.origin = position
+            self.geometries.add(anObject)
+        elif isinstance(anObject, Source):
+            anObject.origin = position
+            self.sources.add(anObject)
+
     def contains(self, position) -> bool:
         """ The base object is infinite. Subclasses override this method
         with their specific geometry. 
@@ -147,6 +155,13 @@ class Geometry:
         very frequently. See implementations for Box, Sphere and Layer
         """
         return True
+
+    def subGeometryContains(self, worldCoordinates):
+        for geometry in self.geometries:
+            localCoordinates = worldCoordinates - geometry.origin
+            if geometry.contains(localCoordinates):
+                return True
+        return False
 
     def validateGeometrySurfaceNormals(self):
         manyPhotons = IsotropicSource(maxCount = 10000)
@@ -250,25 +265,33 @@ class Geometry:
         return FresnelIntersect(direction, intersectSurface, minDistance, self)
 
     def getPossibleIntersections(self, photons, distances):
-        if isIterable(photons):
+        """
+        We take the closest of any interface we cross.
+        """
+        unimpededPhotons = Photons()
+        impededPhotons = Photons()
+        interfaces = FresnelIntersects()
 
-            unimpededPhotons = Photons()
-            impededPhotons = Photons()
-            interfaces = FresnelIntersects()
+        for i, p in enumerate(photons):
+            exitInterface = self.nextExitInterface(p.r, p.ez, distances[i])
+            entranceInterface = self.nextEntranceInterface(p.r, p.ez, distances[i])
 
-            for i, p in enumerate(photons):
-                interface = self.nextExitInterface(p.r, p.ez, distances[i])
-                if interface is not None:
-                    interfaces.append(interface)
-                    impededPhotons.append(p)
+            if exitInterface is None and entranceInterface is None:
+                unimpededPhotons.append(p)
+            elif exitInterface is not None and entranceInterface is None:
+                interfaces.append(exitInterface)
+                impededPhotons.append(p)
+            elif entranceInterface is not None and exitInterface is None:
+                interfaces.append(entranceInterface)
+                impededPhotons.append(p)
+            elif entranceInterface.distance < exitInterface.distance:
+                interfaces.append(entranceInterface)
+                impededPhotons.append(p)
+            else:
+                interfaces.append(exitInterface)
+                impededPhotons.append(p)
 
-                else:
-                    unimpededPhotons.append(p)
-
-            return unimpededPhotons, (impededPhotons, interfaces)
-
-        else:
-            raise TypeError("Must be a Photons itterable object.")
+        return unimpededPhotons, (impededPhotons, interfaces)
 
 
     @staticmethod

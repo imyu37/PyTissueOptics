@@ -5,6 +5,7 @@ from .geometry import Geometry
 class World(Geometry):
     def __init__(self):
         self.verbose = False
+        self.countNotSupposedToBeThere = 0
 
     def totalSourcePhotons(self) -> float:
         total = 0
@@ -12,7 +13,7 @@ class World(Geometry):
             total += source.maxCount
         return total
 
-    def compute(self, graphs):
+    def compute(self, graphs, progress=False):
         self.startCalculation()
         N = 0
         for source in self.sources:
@@ -47,29 +48,16 @@ class World(Geometry):
                                 currentGeometry = intersection.geometry
                         else:
                             photon.weight = 0
+            if progress:
                 self.showProgress(i + 1, maxCount=source.maxCount, graphs=graphs)
 
         duration = self.completeCalculation()
-        print("{0:.1f} ms per photon\n".format(duration * 1000 / N))
-
-    def computeMany(self, graphs):
-        self.startCalculation()
-        N = 0
-        for source in self.sources:
-            N += source.maxCount
-            photons = Photons(list(source))
-
-            while photons.liveCount() != 0:
-                geometries = self.assignCurrentGeometries(photons)
-                for i, geometry in enumerate(geometries):
-                    if geometry is not None:
-                        photonsInGeometry = photons.livePhotonsInGeometry(geometry)
-                        print(photonsInGeometry.liveCount(), geometry)
-                        geometry.propagateMany(photonsInGeometry)
+        if progress:
+            print("{0:.1f} ms per photon\n".format(duration * 1000 / N))
 
     def propagate(self, photon):
         if photon.currentGeometry != self:
-            print("I should not be here")
+            self.countNotSupposedToBeThere += 1
             photon.weight = 0
             return
 
@@ -98,6 +86,20 @@ class World(Geometry):
         for photon in photons:
             self.propagate(photon)
 
+    def place(self, anObject, position):
+        if isinstance(anObject, Geometry) or isinstance(anObject, Detector):
+            anObject.origin = position
+            self.geometries.add(anObject)
+        elif isinstance(anObject, Source):
+            anObject.origin = position
+            self.sources.add(anObject)
+
+    def contains(self, worldCoordinates):
+        for geometry in self.geometries:
+            localCoordinates = worldCoordinates - geometry.origin
+            if geometry.contains(localCoordinates):
+                return geometry
+        return self
 
     def assignCurrentGeometry(self, photon):
         if photon.isAlive:
@@ -157,7 +159,7 @@ class World(Geometry):
             signal.signal(signal.SIGUSR2, self.processSignal)
 
         if len(self.geometries) == 0:
-            raise LogicalError("No geometries: you must create objects")
+            raise SyntaxError("No geometries: you must create objects")
 
         for geometry in self.geometries:
             for surface in geometry.surfaces:
@@ -169,7 +171,7 @@ class World(Geometry):
                 print("The geometry {0} appears invalid. Advancing cautiously.".format(geometry, err))
 
         if len(self.sources) == 0:
-            raise LogicalError("No sources: you must create sources")
+            raise SyntaxError("No sources: you must create sources")
 
         self.startTime = time.time()
 
@@ -204,6 +206,6 @@ class World(Geometry):
                     if geometry.stats is not None:
                         geometry.stats.showEnergy2D(plane='xz', integratedAlong='y', title="{0} photons".format(i))
 
-    def report(self):
+    def report(self, graphs=True):
         for geometry in self.geometries:
-            geometry.report(totalSourcePhotons=self.totalSourcePhotons())
+            geometry.report(totalSourcePhotons=self.totalSourcePhotons(), graphs=graphs)

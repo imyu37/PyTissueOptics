@@ -1,5 +1,7 @@
-from .vector import *
-from scalars import Scalars
+from pytissueoptics import *
+import numpy as np
+from pytissueoptics.vector import ConstUnitVector, ConstVector, Vector
+
 
 class Surface:
     def __init__(self, origin, a, b, normal, size=None, description=None):
@@ -118,6 +120,7 @@ class ZXRect(Surface):
             description = "ZX at y={0:.1f}".format(origin)
         super(ZXRect, self).__init__(origin, zHat, xHat, yHat, size, description)
 
+
 class FresnelIntersect:
     def __init__(self, direction, surface, distance, geometry=None):
         self.surface = surface
@@ -211,7 +214,7 @@ class FresnelIntersect:
         self.thetaOut = np.arcsin(sinThetaOut)
         return self.thetaIn - self.thetaOut
 
-class FresnelIntersects:
+class NativeFresnelIntersects:
     def __init__(self, array = None):
         self._intersects = []
         if array is not None:
@@ -239,24 +242,39 @@ class FresnelIntersects:
 
         raise StopIteration
 
+    @property
+    def isEmpty(self):
+        if len(self._intersect) == 0:
+            return True
+        else:
+            return False
 
     @property
     def distance(self):
         return Scalars(list(map(lambda intersect: intersect.distance, self._intersects)))
 
+    @property
+    def incidencePlane(self):
+        return Vectors(list(map(lambda intersect: intersect.incidencePlane, self._intersects)))
+
     def append(self, intersect):
         self._intersects.append(intersect)
 
     def reflectionCoefficient(self, theta) -> Scalars:
-        return Scalars(map(lambda intersect, theta: intersect.reflectionCoefficient(theta), self._intersects, thetas))
+        return Scalars(list(map(lambda intersect, theta: intersect.reflectionCoefficient(theta), self._intersects, theta)))
 
     def isReflected(self) -> Scalars:
-        return Scalars(map(lambda intersect: intersect.isReflected(), self._intersects))
+        return Scalars(list(map(lambda intersect: intersect.isReflected(), self._intersects)))
 
     @property
     def reflectionDeflection(self) -> Scalars:
-        return Scalars(map(lambda intersect: intersect.reflectionDeflection(), self._intersects))
+        return Scalars(list(map(lambda intersect: intersect.reflectionDeflection, self._intersects)))
 
     @property
     def refractionDeflection(self) -> Scalars:
-        return Scalars(map(lambda intersect: intersect.refractionDeflection(), self._intersects))
+        return Scalars(list(map(lambda intersect: intersect.refractionDeflection, self._intersects)))
+
+class NumpyFresnelIntersects:
+    pass
+
+FresnelIntersects = NativeFresnelIntersects

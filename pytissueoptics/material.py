@@ -1,12 +1,5 @@
+from pytissueoptics import *
 import numpy as np
-from scalars import Scalars
-
-def isIterable(someObject):
-    try:
-        iter(someObject)
-    except TypeError as te:
-        return False
-    return True
 
 
 class Material:
@@ -35,10 +28,16 @@ class Material:
         return -np.log(rnd) / self.mu_t
 
     def getManyScatteringDistances(self, photons):
-        if isIterable(photons):
-            return Scalars([self.getScatteringDistance(p) for p in photons ])
-        else:
-            raise TypeError("Must be a Photons itterable object.")
+        if photons.isRowOptimized:
+            return Scalars([self.getScatteringDistance(p) for p in photons])
+
+        elif photons.isColumnOptimized:
+            rnd = False
+            d = Scalars(np.random.random(len(photons)))
+            while rnd is False:
+                d.conditional_eq(0, np.random.random(), d.v)
+                rnd = d.all()
+            return Scalars(-np.log(d.v) / self.mu_t)
 
     def getScatteringAngles(self, photon):
         phi = np.random.random() * 2 * np.pi
@@ -51,22 +50,27 @@ class Material:
         return np.arccos(cost), phi
 
     def getManyScatteringAngles(self, photons):
-        thetas = []
-        phis = []
+        N = len(photons)
+        if photons.isRowOptimized:
+            thetas = []
+            phis = []
 
-        for photon in photons:
-            theta, phi = self.getScatteringAngles(photon)
-            thetas.append(theta)
-            phis.append(phi)
+            for photon in photons:
+                theta, phi = self.getScatteringAngles(photon)
+                thetas.append(theta)
+                phis.append(phi)
+            return Scalars(thetas), Scalars(phis)
 
-        return Scalars(thetas), Scalars(phis)
+        elif photons.isColumnOptimized:
+            phi = np.random.random(N) * 2 * np.pi
+            g = self.g
+            if g == 0:
+                cost = 2 * np.random.random(N) - 1
+            else:
+                temp = (1 - g * g) / (1 - g + 2 * g * np.random.random(N))
+                cost = (1 + g * g - temp * temp) / (2 * g)
+            return Scalars(np.arccos(cost)), Scalars(phi)
 
-        # This does not work:
-        # if isIterable(photons):
-        #     theta, phi = zip(*[self.getScatteringAngles(p) for p in photons])
-        #     return Scalars(theta), Scalars(phi)
-        # else:
-        #     raise TypeError("Must be a Photons itterable object.")
 
     def __repr__(self):
         return "Material: µs={0} µa={1} g={2} n={3}".format(self.mu_s, self.mu_a, self.g, self.index)

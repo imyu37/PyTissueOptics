@@ -1,13 +1,9 @@
-from .surface import *
-from .source import *
-
-
-def isIterable(someObject):
-    try:
-        iter(someObject)
-    except TypeError as te:
-        return False
-    return True
+from pytissueoptics import *
+from pytissueoptics.vector import Vector, ConstVector
+from pytissueoptics.vectors import Vectors
+from pytissueoptics.scalars import Scalars
+from pytissueoptics.photon import Photons
+import matplotlib.pyplot as plt
 
 
 class Geometry:
@@ -89,55 +85,58 @@ class Geometry:
         some interface. We will return the photons that have exited the geometry.
         """
 
-        photons.transformToLocalCoordinates(self.origin)
-        self.scoreManyWhenStarting(photons)
 
-        photonsInside = Photons(list(photons))
+        photonsInside = photons
+        photonsInside.transformToLocalCoordinates(self.origin)
+        self.scoreManyWhenStarting(photonsInside)
+        photonsExited = Photons()
 
-        while (len(photonsInside) != 0):
-            # Get distance to interaction point
+        while not photonsInside.isEmpty:
             distances = self.material.getManyScatteringDistances(photonsInside)
-
             # Split photons into two groups: those freely propagating and those hitting some interface.
             # We determine the groups based on the photons (and their positions) and the interaction
             # distances (calculated above). For those hitting an interface, we provide a list of 
             # corresponding interfaces
-            unimpededPhotons, (impededPhotons, interfaces) = self.getPossibleIntersections(photonsInside, distances)
+            (unimpededPhotons, unimpededDistances), (impededPhotons, interfaces) = self.getPossibleIntersections(photonsInside, distances)
 
             # We now deal with both groups (unimpeded and impeded photons) independently
             # ==========================================
             # 1. Unimpeded photons: they simply propagate through the geometry without anything special
-            unimpededPhotons.moveBy(distances)
+            unimpededPhotons.moveBy(unimpededDistances)
             deltas = unimpededPhotons.decreaseWeight(self.material.albedo)
-            self.scoreManyInVolume(unimpededPhotons, deltas) # optional
+            self.scoreManyInVolume(unimpededPhotons, deltas)  # optional
             thetas, phis = self.material.getManyScatteringAngles(unimpededPhotons)
             unimpededPhotons.scatterBy(thetas, phis)
 
             # 2. Impeded photons: they propagate to the interface, then will either be reflected or transmitted
-            # remainingDistances = impededPhotons.moveBy(interfaces.distance)
-            impededPhotons.moveBy(interfaces.distance)
-            reflectedPhotons, transmittedPhotons = impededPhotons.areReflected(interfaces)
 
-            # 2.1 Reflected photons change their direction following Fresnel reflection, then move inside 
-            #     object
-            reflectedPhotons.reflect(interfaces)
-            # reflectedPhotons.moveBy(remainingDistances) #FIXME: there couldbe another interface
+            impededPhotons.moveBy(interfaces.distance)
+            (reflectedPhotons, reflectedInterfaces), (transmittedPhotons, transmittedInterfaces) = impededPhotons.areReflected(interfaces)
+
+            # 2.1 Reflected photons change their direction following Fresnel reflection, then move inside
+
+            reflectedPhotons.reflect(reflectedInterfaces)
+            # reflectedPhotons.moveBy(remainingDistances) #FIXME: there could be another interface
 
             # 2.2 Transmitted photons change their direction following the law of refraction, then move 
             #     outside the object and are stored to be returned and propagated into another object.
-            transmittedPhotons.refract(interfaces)
-            transmittedPhotons.moveBy(1e-3)
-            self.scoreManyWhenExiting(transmittedPhotons, interfaces) #optional
-            photonsInside.remove(transmittedPhotons)
+            transmittedPhotons.refract(transmittedInterfaces)
+            transmittedPhotons.moveBy(1e-6)
+            self.scoreManyWhenExiting(transmittedPhotons, interfaces)  # optional
+
+            photonsInside = Photons()
+            photonsInside.append(unimpededPhotons)
+            photonsInside.append(reflectedPhotons)
 
             # 3. Low-weight photons are randomly killed while keeping energy constant.
             photonsInside.roulette()
+            photonsExited.append(transmittedPhotons)
 
         # Because the code will not typically calculate millions of photons, it is
         # inexpensive to keep all the propagated photons.  This allows users
         # to go through the list after the fact for a calculation of their choice
         # self.scoreWhenFinal(photons)
-        photons.transformFromLocalCoordinates(self.origin)
+        photonsExited.transformFromLocalCoordinates(self.origin)
 
     def place(self, anObject, position):
         if isinstance(anObject, Geometry) or isinstance(anObject, Detector):
@@ -162,6 +161,9 @@ class Geometry:
             if geometry.contains(localCoordinates):
                 return True
         return False
+
+    def containsMany(self, finalPositions, photons):
+        return Scalars([True]*len(photons))
 
     def validateGeometrySurfaceNormals(self):
         manyPhotons = IsotropicSource(maxCount = 10000)
@@ -265,41 +267,49 @@ class Geometry:
         return FresnelIntersect(direction, intersectSurface, minDistance, self)
 
     def getPossibleIntersections(self, photons, distances):
-        """
-        We take the closest of any interface we cross.
-        """
-        unimpededPhotons = Photons()
-        impededPhotons = Photons()
-        interfaces = FresnelIntersects()
+        if photons.isRowOptimized:
+            unimpededPhotons = Photons()
+            impededPhotons = Photons()
+            interfaces = FresnelIntersects()
+            unimpededDistances = Scalars()
 
-        for i, p in enumerate(photons):
-            exitInterface = self.nextExitInterface(p.r, p.ez, distances[i])
-            entranceInterface = self.nextEntranceInterface(p.r, p.ez, distances[i])
+            for i, p in enumerate(photons):
+                interface = self.nextExitInterface(p.r, p.ez, distances[i])
+                if interface is not None:
+                    interfaces.append(interface)
+                    impededPhotons.append(p)
 
-            if exitInterface is None and entranceInterface is None:
-                unimpededPhotons.append(p)
-            elif exitInterface is not None and entranceInterface is None:
-                interfaces.append(exitInterface)
-                impededPhotons.append(p)
-            elif entranceInterface is not None and exitInterface is None:
-                interfaces.append(entranceInterface)
-                impededPhotons.append(p)
-            elif entranceInterface.distance < exitInterface.distance:
-                interfaces.append(entranceInterface)
-                impededPhotons.append(p)
-            else:
-                interfaces.append(exitInterface)
-                impededPhotons.append(p)
+                else:
+                    unimpededPhotons.append(p)
+                    unimpededDistances.append(distances[i])
 
-        return unimpededPhotons, (impededPhotons, interfaces)
+            return (unimpededPhotons, unimpededDistances), (impededPhotons, interfaces)
+
+        elif photons.isColumnOptimized:
+            unimpededPhotons = Photons()
+            impededPhotons = Photons()
+            interfaces = FresnelIntersects()
+            unimpededDistances = Scalars()
+
+            for i, p in enumerate(photons):
+                interface = self.nextExitInterface(p.r, p.ez, distances[i])
+                if interface is not None:
+                    interfaces.append(interface)
+                    impededPhotons.append(p)
+
+                else:
+                    unimpededPhotons.append(p)
+                    unimpededDistances.append(distances[i])
+
+            return (unimpededPhotons, unimpededDistances), (impededPhotons, interfaces)
 
 
-    @staticmethod
-    def isReflected(photon, surface) -> bool:
-        R = photon.fresnelCoefficient(surface)
-        if np.random.random() < R:
-            return True
-        return False
+    # @staticmethod
+    # def isReflected(photon, surface) -> bool:
+    #     R = photon.fresnelCoefficient(surface)
+    #     if np.random.random() < R:
+    #         return True
+    #    return False
 
     def scoreWhenStarting(self, photon):
         if self.stats is not None:
@@ -340,7 +350,7 @@ class Geometry:
         if self.stats is not None:
             self.stats.scoreWhenFinal(photon)
 
-    def report(self, totalSourcePhotons):
+    def report(self, totalSourcePhotons, graphs = True):
         print("{0}".format(self.label))
         print("=====================\n")
         print("Geometry and material")
@@ -350,26 +360,22 @@ class Geometry:
         print("\nPhysical quantities")
         print("---------------------")
         if self.stats is not None:
-            totalWeightAcrossAllSurfaces = 0
             for i, surface in enumerate(self.surfaces):
-                totalWeight = self.stats.totalWeightCrossingPlane(surface)
                 print("Transmittance [{0}] : {1:.1f}% of propagating light".format(surface,
-                                                                                   100 * totalWeight / self.stats.inputWeight))
+                                                                                   100 * self.stats.transmittance(self.surfaces)))
                 print("Transmittance [{0}] : {1:.1f}% of total power".format(surface,
-                                                                             100 * totalWeight / totalSourcePhotons))
-                totalWeightAcrossAllSurfaces += totalWeight
+                                                                             100 * self.stats.transmittance(self.surfaces, referenceWeight=totalSourcePhotons)))
 
-            print("Absorbance : {0:.1f}% of propagating light".format(
-                100 * self.stats.totalWeightAbsorbed() / self.stats.inputWeight))
-            print("Absorbance : {0:.1f}% of total power".format(
-                100 * self.stats.totalWeightAbsorbed() / totalSourcePhotons))
+            print("Absorbance : {0:.1f}% of propagating light".format( 100 * self.stats.absorbance()))
+            print("Absorbance : {0:.1f}% of total power".format( 100 * self.stats.absorbance(totalSourcePhotons)))
 
-            totalCheck = totalWeightAcrossAllSurfaces + self.stats.totalWeightAbsorbed()
+            totalCheck = self.stats.totalWeightAcrossAllSurfaces(self.surfaces) + self.stats.totalWeightAbsorbed()
             print("Absorbance + Transmittance = {0:.1f}%".format(100 * totalCheck / self.stats.inputWeight))
 
-            self.stats.showEnergy2D(plane='xz', integratedAlong='y', title="Final photons", realtime=False)
-            if len(self.surfaces) != 0:
-                self.stats.showSurfaceIntensities(self.surfaces, maxPhotons=totalSourcePhotons)
+            if graphs:
+                self.stats.showEnergy2D(plane='xz', integratedAlong='y', title="Final photons", realtime=False)
+                if len(self.surfaces) != 0:
+                    self.stats.showSurfaceIntensities(self.surfaces, maxPhotons=totalSourcePhotons)
 
     def __repr__(self):
         return "{0}".format(self)

@@ -1,7 +1,7 @@
+from pytissueoptics import *
+from pytissueoptics.vector import Vector
 import matplotlib.pyplot as plt
-import time
-import os
-from .vector import *
+import numpy as np
 
 
 class Stats:
@@ -58,6 +58,57 @@ class Stats:
 
         return coords
 
+    @property
+    def xBinCenters(self):
+        coords = []
+        delta = (self.max[0] - self.min[0]) / self.size[0]
+        for i in range(self.size[0]):
+            coords.append(self.min[0] + (i +0.5) * delta)
+        return coords
+
+    @property
+    def yBinCenters(self):
+        coords = []
+        delta = (self.max[1] - self.min[1]) / self.size[1]
+        for i in range(self.size[1]):
+            coords.append(self.min[1] + (i + 0.5) * delta)
+        return coords
+
+    @property
+    def zBinCenters(self):
+        coords = []
+        delta = (self.max[2] - self.min[2]) / self.size[2]
+        for i in range(self.size[2]):
+            coords.append(self.min[2] + (i + 0.5)* delta)
+
+        return coords
+
+    def energyRMSVolume(self):
+        (xWidth, yWidth, zWidth) = self.energyRMSWidths()
+
+        return xWidth*yWidth*zWidth
+
+    def energyRMSWidths(self):
+        xWidth = self.rms(self.xBinCenters, self.energy.sum(axis=(1, 2)))
+        yWidth = self.rms(self.yBinCenters, self.energy.sum(axis=(0, 2)))
+        zWidth = self.rms(self.zBinCenters, self.energy.sum(axis=(0, 1)))
+
+        return (xWidth, yWidth, zWidth)
+
+    def rms(self, xs, values):
+        vX  = 0
+        vX2 = 0
+        vSum = 0
+        for x, value in zip(xs, values):
+            vX += value*x
+            vX2 += value*x*x
+            vSum += value
+
+        xMean = vX/vSum
+        x2Mean = vX2/vSum
+
+        return np.sqrt(x2Mean-xMean*xMean)
+
     def photonsCrossingPlane(self, surface):
         a = []
         b = []
@@ -77,8 +128,24 @@ class Stats:
 
         return sum(weights)
 
+    def totalWeightAcrossAllSurfaces(self, surfaces) -> float:
+        totalWeightAcrossAllSurfaces = 0
+        for surface in surfaces:
+            totalWeightAcrossAllSurfaces += self.totalWeightCrossingPlane(surface)
+        return totalWeightAcrossAllSurfaces
+
     def totalWeightAbsorbed(self) -> float:
         return sum(sum(sum(self.energy)))
+
+    def absorbance(self, referenceWeight=None) -> float:
+        if referenceWeight is None:
+            referenceWeight = self.inputWeight
+        return self.totalWeightAbsorbed() / referenceWeight
+
+    def transmittance(self, surfaces, referenceWeight=None) -> float:
+        if referenceWeight is None:
+            referenceWeight = self.inputWeight
+        return self.totalWeightAcrossAllSurfaces(surfaces) / referenceWeight
 
     def report(self):
         elapsed = time.time() - self.startTime
@@ -136,7 +203,7 @@ class Stats:
     def showEnergy3D(self):
         raise NotImplementedError()
 
-    def showEnergy2D(self, plane: str, cutAt: int = None, integratedAlong: str = None, title="", realtime=True):
+    def showEnergy2D(self, plane: str, cutAt: int = None, integratedAlong: str = None, title=None, xLabel=None, yLabel=None, realtime=True):
         if len(self.volume) == 0:
             return
 
@@ -156,7 +223,11 @@ class Stats:
             plt.ion()
             self.volumeFig = plt.figure()
 
-        plt.title("Energy in {0} with {1:.0f} photons".format(plane, self.inputWeight))
+        if title is None:
+            plt.title("Energy in {0} with {1:.0f} photons".format(plane, self.inputWeight))
+        elif type(title) == str:
+            plt.title(title)
+
         if cutAt is not None:
             if plane == 'xy':
                 plt.imshow(np.log(self.energy[:, :, cutAt] + 0.0001), cmap='viridis',
@@ -180,14 +251,15 @@ class Stats:
                 sum = self.energy.sum(axis=1)
                 plt.imshow(np.log(sum + 0.0001), cmap='viridis',
                            extent=[self.min[2], self.max[2], self.min[0], self.max[0]], aspect='auto')
+                plt.pause(1)
 
         if realtime:
-            self.volumeFig.show()
+            #self.volumeFig.show()
             plt.pause(0.1)
             plt.clf()
         else:
             plt.ioff()
-            self.volumeFig.show()
+            #self.volumeFig.show()
 
     def showEnergy1D(self, axis: str, cutAt=None, integratedAlong=None, title="", realtime=True):
         if len(self.volume) == 0:

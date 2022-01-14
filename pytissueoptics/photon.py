@@ -91,7 +91,6 @@ class Photon:
             self.moveBy(d=1e-3)  # Move away from surface
             self.walk(distanceLeft)
 
-
         elif self._material.isVacuum:
             self.weight = 0
 
@@ -184,6 +183,8 @@ class Photon:
 
     def _keepPathStatistics(self):
         self.path = [Vector(self.r)]  # Will continue every move
+
+
 
 class NativePhotons:
     def __init__(self, array=None, positions=None, directions=None, N=0):

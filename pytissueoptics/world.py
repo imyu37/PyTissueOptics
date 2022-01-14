@@ -1,9 +1,10 @@
-from pytissueoptics import Geometry, Source, Detector, Material, Photon
+from pytissueoptics import Geometry, Source, Detector, Material, Photon, Vector
 from typing import List
 import signal
 import time
 
 from pytissueoptics.intersectionFinder import SimpleIntersectionFinder
+from pytissueoptics.dataLogger import SimpleDataLogger
 
 
 class World:
@@ -12,6 +13,7 @@ class World:
         self.sources: List[Source] = []
         self.verbose = False
         self.countNotSupposedToBeThere = 0
+        self.worldMaterial = Material()
 
     def place(self, anObject, position):
         if isinstance(anObject, Geometry) or isinstance(anObject, Detector):
@@ -48,12 +50,11 @@ class World:
         """ New implementation of "compute" using richer domain.
             This method acts as an application context. """
         self._startCalculation()
-
-        worldMaterial = Material()
         intersectionFinder = SimpleIntersectionFinder(geometries=self.geometries)
+        dataLogger = SimpleDataLogger()
 
         for i, photon in enumerate(self.photons):
-            photon.setContext(worldMaterial, intersectionFinder, sensor)
+            photon.setContext(self.worldMaterial, intersectionFinder, dataLogger)
             photon.propagate()
 
     @property
@@ -139,7 +140,9 @@ class World:
         for geometry in self.geometries:
             for surface in geometry.surfaces:
                 surface.indexInside = geometry.material.index
-                surface.indexOutside = 1.0  # Index outside
+                surface.materialInside = geometry.material
+                surface.materialOutside = self._checkOutsideIndex(geometry, surface)
+                surface.indexOutside = surface.materialOutside.index
             try:
                 geometry.validateGeometrySurfaceNormals()
             except Exception as err:
@@ -149,6 +152,18 @@ class World:
             raise SyntaxError("No sources: you must create sources")
 
         self.startTime = time.time()
+
+    def _checkOutsideIndex(self, currentGeometry, surface, epsilon=0.001):
+        outsidePoint = Vector.fromScaledSum(surface.origin, surface.normal, epsilon)
+        if not currentGeometry.contains(outsidePoint):
+            for geometry in self.geometries:
+                if geometry.contains(outsidePoint):
+                    return geometry.material
+
+            return self.worldMaterial
+
+        else:
+            print("doesnt work")
 
     def _completeCalculation(self) -> float:
         if 'SIGUSR1' in dir(signal) and 'SIGUSR2' in dir(signal):

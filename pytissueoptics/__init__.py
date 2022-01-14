@@ -29,7 +29,8 @@ from pytissueoptics.geometry import *
 from pytissueoptics.detector import *
 from pytissueoptics.world import *
 from pytissueoptics.stats import *
-
+from pytissueoptics.intersectionFinder import *
+from pytissueoptics.dataLogger import *
 
 __version__ = "1.0.4"
 __author__ = "Daniel Cote <dccote@cervo.ulaval.ca>"

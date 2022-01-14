@@ -53,7 +53,7 @@ class Photon:
         self.sensor = None
         self._worldMaterial = None
 
-    def setContext(self, worldMaterial: Material, intersectionFinder, sensor):
+    def setContext(self, worldMaterial: Material, intersectionFinder: IntersectionFinder, sensor: DataLogger):
         self._worldMaterial = worldMaterial
         self.intersectionFinder = intersectionFinder
         self.sensor = sensor
@@ -74,7 +74,7 @@ class Photon:
             self.roulette()
 
     def walk(self, distance):
-        geometry, intersection = self.intersectionFinder.search(self.globalPosition, self.ez, distance)
+        intersection = self.intersectionFinder.search(self.globalPosition, self.ez, distance)
 
         if intersection:
             self.moveBy(d=intersection.distance)
@@ -83,6 +83,7 @@ class Photon:
             if intersection.isReflected():
                 self.reflect(intersection)
             else:
+                self.sensor.logIntersectData(intersection)
                 self.refract(intersection)
                 self._updateMaterial(intersection.nextMaterial)
                 distanceLeft *= self._material.getScatteringDistance() / distance
@@ -96,12 +97,11 @@ class Photon:
 
         else:
             self.moveBy(distance)
-            self.scatterIn(geometry)
+            self.scatter()
 
-    def scatterIn(self, geometry):
+    def scatter(self):
         delta = self.weight * self._material.albedo
         self.decreaseWeightBy(delta)
-        geometry._scoreInVolume(self, delta)
         theta, phi = self._material.getScatteringAngles()
         self.scatterBy(theta, phi)
 
@@ -118,6 +118,12 @@ class Photon:
             self._material = self._worldMaterial
         else:
             self._material = material
+
+    def _updateGeometry(self, geometry):
+        if geometry is None:
+            self._currentGeometry = None
+        else:
+            self._currentGeometry = geometry
 
     def transformToLocalCoordinates(self, origin):
         self.r = self.r - origin
@@ -139,7 +145,7 @@ class Photon:
 
     def decreaseWeightBy(self, delta):
         if self.sensor:
-            self.sensor.scoreInVolume(self, delta)
+            self.sensor.logVolumetric(self.r, delta, geometry)
         self.weight -= delta
         if self.weight < 0:
             self.weight = 0

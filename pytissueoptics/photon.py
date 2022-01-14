@@ -144,7 +144,7 @@ class Photon:
 
     def decreaseWeightBy(self, delta):
         if self.sensor:
-            self.sensor.logVolumetric(self.r, delta, geometry)
+            self.sensor.logVolumetric(self.r, delta, self.currentGeometry)
         self.weight -= delta
         if self.weight < 0:
             self.weight = 0

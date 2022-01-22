@@ -692,7 +692,7 @@ class CupyVectors:
                 self.v = cp.stack((x, y, z), axis=-1)
 
             else:
-                self.v = cp.asarray(vectors, dtype=cp.float64)
+                self.v = cp.array(vectors, dtype=cp.float64)
 
         elif vectors is not None and N is not None:
             if type(vectors) == vec.Vector:
@@ -774,9 +774,14 @@ class CupyVectors:
         return self
 
     def __next__(self):
-        result = self.v[:, self._iteration]
-        self._iteration += 1
-        return result
+
+        if self._iteration < len(self):
+            result = self.v[:, self._iteration]
+            self._iteration += 1
+            return result
+
+        else:
+            raise StopIteration
 
     @property
     def x(self):
@@ -1063,4 +1068,4 @@ class OpenclVectors:
 
         self._iteration = 0
 
-Vectors = NumpyVectors
+Vectors = CupyVectors

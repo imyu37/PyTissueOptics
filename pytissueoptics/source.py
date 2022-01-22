@@ -77,7 +77,7 @@ class IsotropicSource(Source):
         return p
 
     def newPhotons(self):
-        positions = [self.origin]*self.maxCount
+        positions = Vectors([self.origin]*self.maxCount)
         directions = []
         for i in range(self.maxCount):
             theta, phi = self.getDirection()

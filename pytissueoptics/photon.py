@@ -445,4 +445,4 @@ class ArrayPhotons:
         pass
 
 
-Photons = NativePhotons
+Photons = ArrayPhotons

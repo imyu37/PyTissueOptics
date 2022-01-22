@@ -6,6 +6,14 @@ from pytissueoptics.photon import Photons
 import matplotlib.pyplot as plt
 
 
+def timing_val(func):
+    def wrapper(*arg, **kw):
+        t1 = time.time()
+        res = func(*arg, **kw)
+        t2 = time.time()
+        print( (t2 - t1), res, func.__name__)
+    return wrapper
+
 class Geometry:
     def __init__(self, material=None, stats=None, label=""):
         self.material = material
@@ -72,6 +80,7 @@ class Geometry:
         self.scoreWhenFinal(photon)
         photon.transformFromLocalCoordinates(self.origin)
 
+    @timing_val
     def propagateMany(self, photons):
         """
         Photons represents a group of photons that will propagate in an object.

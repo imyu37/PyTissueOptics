@@ -1,19 +1,20 @@
 from pytissueoptics import *
 import pyopencl as cl
+import pyopencl.array
 import pyopencl.tools
 import numpy as np
 
 
 kernelsource = """
-__kernel void vadd(
+__kernel void add(
     __global float* a,
     __global float* b,
-    __global float* c,
+    const float32 value,
     const unsigned int count)
 {
-    int i = get_global_id(0);
-    if (i < count)
-        c[i] = a[i] + b[i];
+    int ix = get_global_id(0);
+    if (ix < count)
+        a[ix] = a[ix] + value;
 }
 
 
@@ -26,7 +27,7 @@ program = cl.Program(context, kernelsource).build()
 
 
 def makePhotonType(device):
-    dtype = np.dtype([("position", np.ndarray), ("direction", np.ndarray), ("weight", np.float32), ("currentGeometryIndex")])
+    dtype = np.dtype([("photonUUI", np.uint32), ("weight", np.float32), ("currentGeometryIndex", np.uint8)])
 
     name = "photonType"
     from pyopencl.tools import get_or_register_dtype, match_dtype_to_c_struct
@@ -39,13 +40,41 @@ def makePhotonType(device):
 
 photon_dtype, photon_c_decl = makePhotonType(context.devices[0])
 
-# Create a and b vectors and fill with random float values
-photon1 = np.array([(np.array([0, 1, 1]), np.array([0, 0, 1]), 0.9, 0)], dtype=photon_dtype)
-photon2 = np.array([(np.array([0, 1, 1]), np.array([0, 0, 1]), 1, 1)], dtype=photon_dtype)
 
-HOST_allPhotons = np.empty((2, 1), dtype=photon_dtype)
-HOST_allPhotons = np.append(HOST_allPhotons, photon1, photon2)
-print(HOST_allPhotons)
+# Create fakes decomposed photons
+N=1000
+HOST_photonsPositions = np.array([[0,0,1]]*N, dtype=np.float32)
+HOST_photonsDirections = np.array([[0,0,1]]*N, dtype=np.float32)
+HOST_photonsWeight = np.array([1]*N, dtype=np.float32)
+HOST_photonsGeometryIndex = np.array([0]*N, dtype=np.uint8)
+
+DEVICE_testArray = cl.array.Array(context, shape=(N,1), dtype=np.float32, data=[[0,0,1]]*N)
+
+DEVICE_photonsPositions = cl.Buffer(context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=HOST_photonsPositions)
+
+t0 = time.time()
+for i in range(1000):
+    DEVICE_photonsPositions.add(1)
+t1 = time.time()
+bufferOperationsTime = t1-t0
+
+t0 = time.time()
+for i in range(1000):
+    DEVICE_testArray = DEVICE_testArray+1
+t1 = time.time()
+CLArrayTime = t1-t0
+
+CPUcompare = np.array([[0,0,1]]*N)
+t0 = time.time()
+for i in range(1000):
+    CPUcompare = CPUcompare+1
+t1 = time.time()
+CPUArrayTime = t1-t0
+
+print(CPUcompare)
+
+#if np.all(np.equal(testcompare, ))
+
 
 # h_b = numpy.random.rand(LENGTH).astype(numpy.float32)
 # # Create an empty c vector (a+b) to be returned from the compute device

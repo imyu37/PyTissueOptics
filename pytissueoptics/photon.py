@@ -53,7 +53,7 @@ class Photon:
         self.sensor = None
         self._worldMaterial = None
 
-    def setContext(self, worldMaterial: Material, intersectionFinder: IntersectionFinder, sensor: DataLogger):
+    def setContext(self, worldMaterial: Material, intersectionFinder: 'IntersectionFinder', sensor: 'DataLogger'):
         self._worldMaterial = worldMaterial
         self.intersectionFinder = intersectionFinder
         self.sensor = sensor

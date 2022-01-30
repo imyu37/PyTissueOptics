@@ -675,6 +675,8 @@ class CupyVectors:
     """
 
     def __init__(self, vectors=None, N=None):
+        self.v = cp.array([])
+
         if vectors is not None and N is None:
             if type(vectors) == np.ndarray:
                 self.v = cp.asarray(vectors, dtype=cp.float64)
@@ -685,11 +687,14 @@ class CupyVectors:
             elif type(vectors) == vec.Vector:
                 self.v = cp.asarray([[vectors.x, vectors.y, vectors.z]], dtype=cp.float64)
 
-            elif type(vectors) == list and type(vectors[0]) == vec.Vector:
+            elif type(vectors) == list and isinstance(vectors[0], vec.Vector):
                 x = cp.asarray([v.x for v in vectors])
                 y = cp.asarray([v.y for v in vectors])
                 z = cp.asarray([v.z for v in vectors])
                 self.v = cp.stack((x, y, z), axis=-1)
+
+            elif type(vectors) == CupyVectors:
+                self.v = vectors.v
 
             else:
                 self.v = cp.array(vectors, dtype=cp.float64)
@@ -711,6 +716,19 @@ class CupyVectors:
             self.v = cp.zeros((N, 3), dtype=cp.float64)
 
         self._iteration = 0
+
+    def append(self, value):
+        valueNotEmpty = True
+        if isinstance(value, Vectors):
+            valueNotEmpty = not value.isEmpty
+        if valueNotEmpty:
+            if self.isEmpty:
+                self.v = Vectors(value).v
+            else:
+                refactoredValue = Vectors(value).v
+                self.v = cp.append(self.v, refactoredValue, axis=0)
+        else:
+            pass
 
     def __len__(self):
         return self.v.shape[0]
@@ -743,6 +761,8 @@ class CupyVectors:
     def __sub__(self, other):
         if isinstance(other, CupyVectors):
             return CupyVectors(cp.subtract(self.v, other.v))
+        elif isinstance(other, vec.Vector):
+            return CupyVectors(cp.subtract(self.v, Vectors(other).v))
         else:
             return CupyVectors(cp.subtract(self.v, other))
 
@@ -784,6 +804,13 @@ class CupyVectors:
             raise StopIteration
 
     @property
+    def isEmpty(self):
+        if len(self.v) == 0:
+            return True
+        else:
+            return False
+
+    @property
     def x(self):
         x = self.v[:, 0]
         return sc.CupyScalars(x)
@@ -812,8 +839,8 @@ class CupyVectors:
 
     @classmethod
     def randomUniform(cls, N, r):
-        theta = (cp.np.random.rand(N) * 2 * cp.pi)
-        phi = (cp.np.random.rand(N) * cp.pi)
+        theta = (cp.random.rand(N) * 2 * cp.pi)
+        phi = (cp.random.rand(N) * cp.pi)
         x = r * cp.sin(phi) * cp.cos(theta)
         y = r * cp.sin(phi) * cp.sin(theta)
         z = r * cp.cos(phi)
@@ -821,8 +848,8 @@ class CupyVectors:
 
     @classmethod
     def randomUniformUnitary(cls, N):
-        theta = cp.np.random.rand(N) * 2 * cp.pi
-        phi = cp.np.random.rand(N) * cp.pi
+        theta = cp.random.rand(N) * 2 * cp.pi
+        phi = cp.random.rand(N) * cp.pi
         x = cp.sin(phi) * cp.cos(theta)
         y = cp.sin(phi) * cp.sin(theta)
         z = cp.cos(phi)
@@ -1068,4 +1095,4 @@ class OpenclVectors:
 
         self._iteration = 0
 
-Vectors = CupyVectors
+Vectors = NumpyVectors

@@ -28,8 +28,8 @@ def timing_val(func):
         return t2 - t1
     return wrapper
 
-maxCounts=[10, 100, 1000, 10000, 100000]
-times = {"maxCounts":[10, 100, 1000, 10000, 100000], "Array + Numpy":[], "Array + Cupy":[], "Array + Native":[], "NormalPhotons":[], "Photon":[]}
+maxCounts=[10, 100, 1000, 2000, 5000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000]
+times = {"maxCounts":maxCounts, "Array + Numpy":[], "Array + Cupy":[], "Array + Native":[], "NormalPhotons":[], "Photon":[]}
 
 
 for mc in maxCounts:

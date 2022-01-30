@@ -6,7 +6,8 @@ def timing_val(func):
         t1 = time.time()
         res = func(*arg, **kw)
         t2 = time.time()
-        print( (t2 - t1), res, func.__name__)
+        print(f"{(t2 - t1)} seconds,",  func.__name__)
+        return t2-t1
     return wrapper
 
 class Geometry:
@@ -88,7 +89,7 @@ class Geometry:
 
         photonsInside = photons
         photonsInside.transformToLocalCoordinates(self.origin)
-        self._scoreManyWhenStarting(photonsInside)
+        #self._scoreManyWhenStarting(photonsInside)
         photonsExited = Photons()
 
         while not photonsInside.isEmpty:

@@ -695,4 +695,4 @@ class CupyScalars:
             return False
 
 
-Scalars = CupyScalars
+Scalars = NumpyScalars

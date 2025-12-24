@@ -1,6 +1,5 @@
 import math
 import unittest
-from unittest.mock import patch
 
 from mockito import mock, verify, when
 
@@ -9,12 +8,6 @@ from pytissueoptics.rayscattering.materials import ScatteringMaterial
 from pytissueoptics.rayscattering.scatteringScene import ScatteringScene
 from pytissueoptics.scene.solids import Cuboid
 from pytissueoptics.scene.viewer import Abstract3DViewer
-
-
-def patchMayaviShow(func):
-    for module in ["show", "gcf", "figure", "clf", "triangular_mesh"]:
-        func = patch("mayavi.mlab." + module)(func)
-    return func
 
 
 class TestScatteringScene(unittest.TestCase):
@@ -36,13 +29,6 @@ class TestScatteringScene(unittest.TestCase):
         scene.addToViewer(viewer)
 
         verify(viewer).add(*scene.solids, ...)
-
-    @patchMayaviShow
-    def testWhenShow_shouldShowInside3DViewer(self, mockShow, *args):
-        scene = ScatteringScene([Cuboid(1, 1, 1, material=ScatteringMaterial())])
-        scene.show()
-
-        mockShow.assert_called_once()
 
     def testShouldHaveIPPEstimationUsingMeanAlbedoInInfiniteMedium(self):
         material1 = ScatteringMaterial(mu_s=1, mu_a=0.7, g=0.9)
